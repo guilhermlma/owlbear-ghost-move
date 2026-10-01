@@ -6,7 +6,7 @@ const MODE_ID = "com.guilherme.ghost-move/mode";
 const ICON_URL = new URL("../icon.svg", import.meta.url).href;
 
 OBR.onReady(async () => {
-  // Ferramenta principal — aparece na barra lateral do OBR com o nome Mouse e ícone de ponteiro
+  // Ferramenta principal — aparece na barra lateral do OBR
   await OBR.tool.create({
     id: TOOL_ID,
     icons: [{ icon: ICON_URL, label: "Mouse" }],
@@ -18,7 +18,7 @@ OBR.onReady(async () => {
   let updateInteraction = null;
   let stopInteraction = null;
 
-  // Modo da ferramenta — define o comportamento do arrasto e o cursor
+  // Modo da ferramenta — define o comportamento do arrasto e cursores
   await OBR.tool.createMode({
     id: MODE_ID,
     icons: [
@@ -30,6 +30,7 @@ OBR.onReady(async () => {
     ],
     cursors: [
       {
+        // Visual de apontar (Pointing Hand / pointer) ao passar o mouse em cima de um token móvel
         cursor: "pointer",
         filter: {
           target: [
@@ -39,6 +40,7 @@ OBR.onReady(async () => {
         },
       },
       {
+        // Cursor padrão para quando estiver fora de tokens
         cursor: "default",
       },
     ],
@@ -48,7 +50,7 @@ OBR.onReady(async () => {
       if (!target || target.locked || target.layer === "MAP") return;
       dragTarget = target;
 
-      // Suprime o contorno de seleção e o nome do jogador
+      // Garante que o token não está na seleção nativa (sem contorno colorido nem nome de jogador)
       await OBR.player.deselect([target.id]);
 
       dragOffset = {
@@ -56,52 +58,72 @@ OBR.onReady(async () => {
         y: target.position.y - event.pointerPosition.y,
       };
 
-      // Inicia a interação fluida nativa de 60fps sem engasgos de rede
-      const interaction = await OBR.interaction.startItemInteraction(target);
-      updateInteraction = interaction[0];
-      stopInteraction = interaction[1];
+      // Inicia a interação fluida de item do Owlbear Rodeo (60fps suave sem picotar)
+      try {
+        const interaction = await OBR.interaction.startItemInteraction(target);
+        updateInteraction = interaction[0];
+        stopInteraction = interaction[1];
+      } catch (e) {
+        updateInteraction = null;
+        stopInteraction = null;
+      }
     },
 
-    onToolDragMove: (_, event) => {
-      if (!dragTarget || !updateInteraction) return;
+    onToolDragMove: async (_, event) => {
+      if (!dragTarget) return;
 
       const newPos = {
         x: event.pointerPosition.x + dragOffset.x,
         y: event.pointerPosition.y + dragOffset.y,
       };
 
-      // Envia atualizações imediatas e leves mantendo o frame rate perfeito
-      updateInteraction((draft) => {
-        draft.position = newPos;
-      });
+      if (updateInteraction) {
+        // Atualização em tempo real via startItemInteraction sem engasgos
+        updateInteraction((draft) => {
+          draft.position = newPos;
+        });
+      } else {
+        // Fallback para updateItems
+        OBR.scene.items.updateItems([dragTarget.id], (items) => {
+          if (items[0]) {
+            items[0].position = newPos;
+          }
+        });
+      }
     },
 
     onToolDragEnd: async (_, event) => {
       if (!dragTarget) return;
-
-      // Finaliza o modo interativo temporário
-      if (stopInteraction) {
-        stopInteraction();
-        stopInteraction = null;
-        updateInteraction = null;
-      }
 
       const rawPos = {
         x: event.pointerPosition.x + dragOffset.x,
         y: event.pointerPosition.y + dragOffset.y,
       };
 
-      let finalPos = rawPos;
-      try {
-        finalPos = await OBR.scene.grid.snapPosition(rawPos, 1, true, true);
-      } catch {
-        // Sem grade ou snap indisponível — mantém posição livre
+      // Encerra a interação contínua
+      if (stopInteraction) {
+        try {
+          stopInteraction();
+        } catch {}
+        updateInteraction = null;
+        stopInteraction = null;
       }
 
-      // Confirmação final da posição atômica na cena
-      await OBR.scene.items.updateItems([dragTarget.id], (items) => {
-        items[0].position = finalPos;
-      });
+      // Alinha à grade (snap) e grava a posição final persistente
+      try {
+        const snapped = await OBR.scene.grid.snapPosition(rawPos, 1, true, true);
+        await OBR.scene.items.updateItems([dragTarget.id], (items) => {
+          if (items[0]) {
+            items[0].position = snapped;
+          }
+        });
+      } catch {
+        await OBR.scene.items.updateItems([dragTarget.id], (items) => {
+          if (items[0]) {
+            items[0].position = rawPos;
+          }
+        });
+      }
 
       dragTarget = null;
       dragOffset = { x: 0, y: 0 };
@@ -109,9 +131,11 @@ OBR.onReady(async () => {
 
     onToolDragCancel: async () => {
       if (stopInteraction) {
-        stopInteraction();
-        stopInteraction = null;
+        try {
+          stopInteraction();
+        } catch {}
         updateInteraction = null;
+        stopInteraction = null;
       }
       dragTarget = null;
       dragOffset = { x: 0, y: 0 };
