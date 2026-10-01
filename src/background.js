@@ -1,49 +1,36 @@
 import OBR from "./obr-sdk.js";
 
-const EXTENSION_ID = "com.guilherme.ghost-move";
-const TOOL_ID = `${EXTENSION_ID}/tool`;
-const MODE_ID = `${EXTENSION_ID}/mode`;
+const TOOL_ID = "com.guilherme.ghost-move/tool";
+const MODE_ID = "com.guilherme.ghost-move/mode";
 
-// Constrói a URL do ícone de forma robusta
-function getIconUrl() {
-  try {
-    return new URL("../icon.svg", import.meta.url).href;
-  } catch {
-    return `${window.location.origin}/icon.svg`;
-  }
-}
-
-const ICON_URL = getIconUrl();
+// Ícone como data URI — sem dependência de URL externa, funciona em qualquer contexto
+const ICON =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">` +
+    `<path fill="white" d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/>` +
+    `</svg>`
+  );
 
 OBR.onReady(async () => {
-  // Registra a ferramenta principal na barra lateral
+  // Ferramenta principal — aparece na barra lateral do OBR
   await OBR.tool.create({
     id: TOOL_ID,
-    icons: [
-      {
-        icon: ICON_URL,
-        label: "Ghost Move",
-        filter: {
-          activeTools: [],
-        },
-      },
-    ],
+    icons: [{ icon: ICON, label: "Ghost Move" }],
     defaultMode: MODE_ID,
   });
 
-  // Registra o modo da ferramenta que implementa o arrasto furtivo
   let dragOffset = { x: 0, y: 0 };
   let dragTarget = null;
 
+  // Modo da ferramenta — define o comportamento do arrasto
   await OBR.tool.createMode({
     id: MODE_ID,
     icons: [
       {
-        icon: ICON_URL,
+        icon: ICON,
         label: "Mover token furtivamente",
-        filter: {
-          activeTools: [TOOL_ID],
-        },
+        filter: { activeTools: [TOOL_ID] },
       },
     ],
     cursors: [
@@ -61,12 +48,9 @@ OBR.onReady(async () => {
     onToolDragStart: async (_, event) => {
       const target = event.target;
       if (!target || target.locked || target.layer === "MAP") return;
-
       dragTarget = target;
-
-      // Deseleciona o token para suprimir o contorno colorido e o nome do jogador
+      // Remove da seleção para suprimir o highlight e o nome do jogador
       await OBR.player.deselect([target.id]);
-
       dragOffset = {
         x: target.position.x - event.pointerPosition.x,
         y: target.position.y - event.pointerPosition.y,
@@ -75,7 +59,6 @@ OBR.onReady(async () => {
 
     onToolDragMove: async (_, event) => {
       if (!dragTarget) return;
-
       await OBR.scene.items.updateItems([dragTarget.id], (items) => {
         items[0].position = {
           x: event.pointerPosition.x + dragOffset.x,
@@ -86,21 +69,18 @@ OBR.onReady(async () => {
 
     onToolDragEnd: async (_, event) => {
       if (!dragTarget) return;
-
       const rawPos = {
         x: event.pointerPosition.x + dragOffset.x,
         y: event.pointerPosition.y + dragOffset.y,
       };
-
       try {
         const snapped = await OBR.scene.grid.snapPosition(rawPos, 1, true, true);
         await OBR.scene.items.updateItems([dragTarget.id], (items) => {
           items[0].position = snapped;
         });
       } catch {
-        // Sem grade ou snap não disponível — mantém posição livre
+        // Sem grade ou snap indisponível — mantém posição livre
       }
-
       dragTarget = null;
       dragOffset = { x: 0, y: 0 };
     },
