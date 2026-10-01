@@ -3,8 +3,8 @@
   "name": "Ghost Move",
   "version": "1.1.0",
   "author": "Guilherme",
-  "icon": "./icon.svg",
+  "icon": "https://guilhermlma.github.io/owlbear-ghost-move/icon.svg",
   "description": "Move tokens silently — no selection highlight or player name shown to others.",
   "homepage_url": "https://github.com/guilhermlma/owlbear-ghost-move",
-  "background_url": "./background.html"
+  "background_url": "https://guilhermlma.github.io/owlbear-ghost-move/background.html"
 }

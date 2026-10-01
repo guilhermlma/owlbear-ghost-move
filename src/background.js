@@ -3,20 +3,13 @@ import OBR from "./obr-sdk.js";
 const TOOL_ID = "com.guilherme.ghost-move/tool";
 const MODE_ID = "com.guilherme.ghost-move/mode";
 
-// Ícone como data URI — sem dependência de URL externa, funciona em qualquer contexto
-const ICON =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">` +
-    `<path fill="white" d="M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z"/>` +
-    `</svg>`
-  );
+const ICON_URL = new URL("../icon.svg", import.meta.url).href;
 
 OBR.onReady(async () => {
   // Ferramenta principal — aparece na barra lateral do OBR
   await OBR.tool.create({
     id: TOOL_ID,
-    icons: [{ icon: ICON, label: "Ghost Move" }],
+    icons: [{ icon: ICON_URL, label: "Ghost Move" }],
     defaultMode: MODE_ID,
   });
 
@@ -28,7 +21,7 @@ OBR.onReady(async () => {
     id: MODE_ID,
     icons: [
       {
-        icon: ICON,
+        icon: ICON_URL,
         label: "Mover token furtivamente",
         filter: { activeTools: [TOOL_ID] },
       },
